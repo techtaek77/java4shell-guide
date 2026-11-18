@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Java4Shell (CVE-2026-114938) 쉬운 설명 — 벨로키와 함께 보는 Base64 대참사</title>
+  <style>
+    :root {
+      --bg: #FFFDF7;
+      --card: #FFFFFF;
+      --ink: #1E2430;
+      --muted: #5A6475;
+      --border: #E6DFD1;
+      --accent: #E85D4A;
+      --accent-soft: #FFF0ED;
+      --blue: #2F6FED;
+      --blue-soft: #EEF4FF;
+      --green: #169C63;
+      --green-soft: #EAF9F2;
+      --amber: #D9822B;
+      --amber-soft: #FFF6E8;
+      --code-bg: #181C24;
+      --shadow: 0 10px 30px rgba(30, 36, 48, 0.06);
+      --radius: 20px;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .wrap {
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 36px 20px 80px;
+    }
+
+    .badge-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 700;
+      border: 1.5px solid var(--border);
+      background: var(--card);
+    }
+
+    .badge.danger {
+      background: var(--accent-soft);
+      border-color: #F8C4BC;
+      color: #B42318;
+    }
+
+    .badge.veloki {
+      background: var(--amber-soft);
+      border-color: #F5D5A7;
+      color: #9A5512;
+    }
+
+    h1 {
+      font-size: clamp(28px, 4.5vw, 42px);
+      line-height: 1.2;
+      margin: 0 0 14px;
+      letter-spacing: -0.02em;
+    }
+
+    .subtitle {
+      font-size: 18px;
+      color: var(--muted);
+      margin: 0 0 28px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      margin-bottom: 24px;
+      box-shadow: var(--shadow);
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 24px;
+      align-items: center;
+    }
+
+    @media (max-width: 760px) {
+      .hero-grid { grid-template-columns: 1fr; }
+    }
+
+    .illus-box {
+      background: #FFFDF7;
+      border: 2px dashed var(--border);
+      border-radius: 16px;
+      padding: 12px;
+      text-align: center;
+    }
+
+    .illus-box img {
+      width: 100%;
+      max-width: 360px;
+      height: auto;
+      border-radius: 12px;
+      display: block;
+      margin: 0 auto;
+    }
+
+    .illus-caption {
+      margin-top: 10px;
+      font-size: 13px;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .tldr {
+      background: var(--amber-soft);
+      border-left: 5px solid var(--amber);
+      border-radius: 12px;
+      padding: 16px 18px;
+      margin-top: 16px;
+    }
+
+    .tldr strong { color: #8A4B08; }
+
+    h2 {
+      font-size: 23px;
+      margin: 0 0 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .step-num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 10px;
+      background: var(--ink);
+      color: #fff;
+      font-size: 15px;
+      font-weight: 800;
+      flex-shrink: 0;
+    }
+
+    .analogy {
+      background: var(--blue-soft);
+      border: 1px solid #C9DBFF;
+      border-radius: 14px;
+      padding: 16px 18px;
+      margin: 14px 0;
+    }
+
+    .analogy-title {
+      font-weight: 800;
+      color: #1D4ED8;
+      margin-bottom: 4px;
+      font-size: 15px;
+    }
+
+    /* Interactive Simulator */
+    .sim-box {
+      background: #F8F6F0;
+      border: 1.5px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      margin-top: 18px;
+    }
+
+    .sim-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    button.sim-btn {
+      border: 1.5px solid var(--border);
+      background: #fff;
+      color: var(--ink);
+      padding: 10px 16px;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    button.sim-btn:hover { transform: translateY(-1px); }
+    button.sim-btn.active-ok {
+      background: var(--green-soft);
+      border-color: var(--green);
+      color: #0D6E45;
+    }
+    button.sim-btn.active-bug {
+      background: var(--accent-soft);
+      border-color: var(--accent);
+      color: #B42318;
+    }
+
+    .sim-stage {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    @media (max-width: 680px) {
+      .sim-stage { grid-template-columns: 1fr; }
+    }
+
+    .stage-pill {
+      background: #fff;
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
+    }
+
+    .stage-pill .label {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .stage-pill .val {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 16px;
+      font-weight: 800;
+      margin-top: 4px;
+    }
+
+    .heap-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      background: var(--code-bg);
+      padding: 14px;
+      border-radius: 12px;
+      margin-top: 10px;
+    }
+
+    .cell {
+      width: 26px;
+      height: 26px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 800;
+      font-family: ui-monospace, monospace;
+    }
+
+    .cell.mine { background: #169C63; color: #fff; }
+    .cell.neighbor { background: #2D3545; color: #8C98AD; }
+    .cell.smashed {
+      background: #E85D4A;
+      color: #fff;
+      animation: pop 0.35s ease;
+    }
+
+    @keyframes pop {
+      0% { transform: scale(0.7); }
+      60% { transform: scale(1.15); }
+      100% { transform: scale(1); }
+    }
+
+    .sim-explain {
+      margin-top: 12px;
+      font-size: 14px;
+      font-weight: 600;
+      padding: 12px 14px;
+      border-radius: 10px;
+      background: #fff;
+      border: 1px solid var(--border);
+    }
+
+    /* Checklist */
+    .check-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-top: 14px;
+    }
+
+    @media (max-width: 680px) {
+      .check-grid { grid-template-columns: 1fr; }
+    }
+
+    .check-card {
+      border: 1.5px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+    }
+
+    .check-card.danger { background: var(--accent-soft); border-color: #F8C4BC; }
+    .check-card.safe { background: var(--green-soft); border-color: #B4E8D0; }
+
+    .check-card h3 {
+      margin: 0 0 8px;
+      font-size: 16px;
+    }
+
+    .code-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      background: var(--code-bg);
+      color: #F8FAFC;
+      padding: 14px 16px;
+      border-radius: 12px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 14px;
+      margin: 12px 0;
+      overflow-x: auto;
+    }
+
+    .copy-btn {
+      background: #2D3545;
+      color: #fff;
+      border: 1px solid #475569;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .copy-btn:hover { background: #3B465B; }
+
+    .speech {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      background: #FFF9EC;
+      border: 1.5px solid #F3DCAA;
+      border-radius: 14px;
+      padding: 14px 16px;
+      margin-top: 16px;
+      font-size: 15px;
+    }
+
+    .speech .tag {
+      background: var(--ink);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 800;
+      padding: 3px 9px;
+      border-radius: 8px;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    footer {
+      text-align: center;
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 32px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="badge-row">
+      <span class="badge danger">🚨 CVE-2026-114938 · CVSS 9.2 (Critical)</span>
+      <span class="badge">☕ OpenJDK / Java4Shell</span>
+      <span class="badge veloki">🦖 벨로키의 3분 해부</span>
+    </div>
+
+    <h1>“<code>=</code> 하나 때문에 Java가 남의 집을 64바이트씩 도배한 사건”</h1>
+    <p class="subtitle">
+      GeekNews #37370에 올라온 <strong>Java4Shell</strong> 취약점, 대체 왜 생겼고 왜 하필 최신 x86-64 서버에서만 터지는지 쉽게 풀어봅니다.
+    </p>
+
+    <!-- HERO CARD -->
+    <section class="card">
+      <div class="hero-grid">
+        <div>
+          <h2 style="margin-top:0;">한 줄 요약부터 보고 가자</h2>
+          <p>
+            Java가 Base64 문자열을 <strong>초고속(AVX-512)</strong>으로 디코딩하다가,
+            끝에 붙은 <strong>이상한 패딩(<code>=</code>)</strong>을 보고 출력 길이를 <strong>음수(예: <code>-2</code>)</strong>로 잘못 계산했습니다.
+          </p>
+          <p>
+            문제는 이 음수 길이를 CPU 비트마스크 명령어에 그대로 넘기면서 벌어집니다.
+            <strong>“2바이트만 써!”</strong>라고 해야 할 걸 <strong>“64바이트 풀로 다 덮어써!”</strong>로 알아들어,
+            내 배열을 뚫고 <strong>옆집 Java 객체 메모리(Heap)</strong>까지 최대 62바이트를 덮어쓰게 된 겁니다.
+          </p>
+          <div class="tldr">
+            <strong>💡 핵심:</strong> Java 코드의 잘못이 아니라, 속도를 높이려고 JVM 내부에 직접 짠 <strong>어셈블리 최적화(Intrinsic)</strong>의 계산 실수입니다!
+          </div>
+        </div>
+        <div class="illus-box">
+          <img src="assets/261118-veloki-java4shell-hero.png" alt="벨로키가 넘치는 Java Base64 머그컵을 보고 놀라는 삽화" />
+          <div class="illus-caption">벨로키: “분명 디코딩만 시켰는데 왜 옆집 메모리까지 넘치지…?”</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- STEP 1 -->
+    <section class="card">
+      <h2><span class="step-num">1</span>Base64와 패딩(<code>=</code>)이 뭔데?</h2>
+      <p>
+        Base64는 이진 데이터(이미지, 토큰 등)를 알파벳·숫자로 바꾸는 방식입니다.
+        원본 데이터 <strong>3바이트</strong>를 글자 <strong>4개</strong>로 묶어서 표현합니다.
+      </p>
+      <div class="analogy">
+        <div class="analogy-title">🥚 계란판 비유</div>
+        4칸짜리 계란판에 데이터를 담는데, 마지막에 계란이 1~2개 모자라면 빈칸을 스티로폼(<code>=</code>)으로 채웁니다.<br/>
+        그래서 정상 Base64 끝에는 <code>=</code>가 0개, 1개, 또는 최대 2개까지만 붙을 수 있어요.
+      </div>
+      <p>
+        그런데 누군가 악의적으로 <strong>64글자(또는 128글자) 뒤에 이상한 위치의 <code>=</code>를 슬쩍 끼워 넣으면</strong> 어떻게 될까요?
+        원래라면 “어, 문법 틀렸네!” 하고 에러(`IllegalArgumentException`)를 내고 멈춰야 정상입니다.
+      </p>
+    </section>
+
+    <!-- STEP 2 & 3 INTERACTIVE -->
+    <section class="card">
+      <h2><span class="step-num">2</span>진짜 범인: 너무 빨라서 앞을 못 본 AVX-512 &amp; 음수 마법</h2>
+      <p>
+        OpenJDK 17.0.6부터는 Base64를 한 글자씩 번역하지 않고, 최신 CPU의 <strong>AVX-512 VBMI</strong> 기능으로
+        한 번에 <strong>64바이트짜리 대형 트럭</strong>으로 밀어버리는 어셈블리 고속도로(<code>StubRoutines</code>)를 씁니다.
+      </p>
+      <p>
+        트럭이 마지막 찌꺼기 데이터를 처리할 때, 패딩(<code>=</code>) 개수를 빼서 남은 출력 길이를 구합니다.
+        여기서 <strong>이상한 패딩 입력</strong>이 들어오면 출력 길이가 <strong>0보다 작은 음수(예: <code>-2</code>)</strong>로 떨어지는(Underflow) 버그가 터집니다!
+      </p>
+
+      <div class="hero-grid" style="margin-top:18px;">
+        <div class="illus-box">
+          <img src="assets/261118-veloki-java4shell-mask.png" alt="음수 -2 줄자를 든 벨로키와 64B 도장이 2B 상자를 부수는 삽화" />
+          <div class="illus-caption">“-2바이트만 쓰라고? OK, 64바이트 다 찍어버릴게!” (bzhiq의 배신)</div>
+        </div>
+        <div>
+          <h3 style="margin-top:0;">왜 음수가 64바이트 도배가 되나요?</h3>
+          <p>
+            CPU는 “64바이트 중 앞의 N바이트만 써라”는 마스크를 만들 때 <code>bzhiq</code> 같은 비트 명령어를 씁니다.
+          </p>
+          <p>
+            여기에 음수(<code>-2</code>)가 들어가면 부호 없는 아주 큰 숫자로 해석되면서,
+            <strong>“일부만 쓰기” 마스크가 “64바이트 전부 허용” 마스크로 변신</strong>해 버립니다!
+          </p>
+          <p>
+            직후에 Java가 “어, Base64 문법 틀렸네!” 하고 예외를 던지긴 하는데… <strong>이미 옆집 힙 메모리 62바이트를 덮어쓴 뒤</strong>입니다. (이게 심하면 원격 코드 실행 RCE로 이어집니다.)
+          </p>
+        </div>
+      </div>
+
+      <!-- Interactive Simulator -->
+      <div class="sim-box">
+        <div style="font-weight:800; margin-bottom:10px;">🎮 직접 눌러보는 Heap 침범 시뮬레이터</div>
+        <div class="sim-controls">
+          <button id="btn-ok" class="sim-btn active-ok" onclick="setSim('ok')">✅ 정상 입력: <code>QUJD</code> (3바이트)</button>
+          <button id="btn-bug" class="sim-btn" onclick="setSim('bug')">💥 문제 입력: <code>A × 64 + "="</code> (이상한 패딩)</button>
+        </div>
+
+        <div class="sim-stage">
+          <div class="stage-pill">
+            <div class="label">계산된 출력 길이</div>
+            <div id="sim-len" class="val" style="color:var(--green);">+3 bytes</div>
+          </div>
+          <div class="stage-pill">
+            <div class="label">bzhiq 쓰기 마스크</div>
+            <div id="sim-mask" class="val">하위 3칸만 ON</div>
+          </div>
+          <div class="stage-pill">
+            <div class="label">Heap 메모리 상태</div>
+            <div id="sim-status" class="val" style="color:var(--green);">안전 (경계 준수)</div>
+          </div>
+        </div>
+
+        <div style="font-size:12px; color:var(--muted); font-weight:700;">
+          메모리 칸 (초록 = 내 2~3B 버퍼 / 회색 = 옆집 Java 객체 / 빨강 = 64B 덮어쓰기 침범!)
+        </div>
+        <div id="heap-strip" class="heap-strip"></div>
+        <div id="sim-explain" class="sim-explain">
+          정상 입력입니다. 필요한 3칸만 깔끔하게 쓰고 옆집 메모리는 건드리지 않았습니다.
+        </div>
+      </div>
+    </section>
+
+    <!-- STEP 3: ENTRY & EXPLOITATION -->
+    <section class="card">
+      <h2><span class="step-num">3</span>어떻게 들어와서, 옆집 객체의 뭘 조작할까?</h2>
+      <p>
+        “어차피 이상한 Base64 넣으면 서버가 <code>400 Bad Request</code> 내고 끝나는 거 아닌가?” 싶지만,
+        <strong>예외(<code>IllegalArgumentException</code>)를 던지기 직전 어셈블리 단계에서 이미 64바이트를 써버린다</strong>는 게 함정입니다.
+        <code>try-catch</code>로 감싸도 메모리 손상은 이미 일어난 뒤입니다.
+      </p>
+
+      <h3 style="margin:18px 0 10px;">1) 어디로 들어오나? (로그인 없이도 닿는 입구들)</h3>
+      <div class="check-grid" style="margin-top:8px;">
+        <div class="check-card" style="background:#F8FAFC;">
+          <h3>🔑 HTTP 인증 헤더 · JWT</h3>
+          <p style="margin:0; font-size:14px; color:var(--muted);">
+            <code>Authorization: Basic ...</code> 헤더나 <code>Bearer &lt;JWT&gt;</code> 토큰은 로그인 검증을 통과하기 <strong>전에</strong> 서버가 먼저 Base64 디코딩을 돌립니다. 인증 없는 공격이 가능한 이유입니다.
+          </p>
+        </div>
+        <div class="check-card" style="background:#F8FAFC;">
+          <h3>📦 API JSON · 웹훅 · 첨부 데이터</h3>
+          <p style="margin:0; font-size:14px; color:var(--muted);">
+            이미지/파일을 Base64 문자열로 받는 API, 서명 검증용 웹훅 페이로드 등 <code>Base64.getDecoder().decode()</code>를 한 번이라도 타는 모든 입력이 통로가 됩니다.
+          </p>
+        </div>
+      </div>
+
+      <h3 style="margin:22px 0 10px;">2) 옆집 객체의 뭘 덮어써서 사고를 내나?</h3>
+      <p style="margin-top:0;">
+        Java의 모든 객체는 힙(Heap) 메모리에 나란히 붙어 있습니다. 공격자가 요청을 여러 번 보내 내 작은 배열 바로 옆에 <strong>원하는 타깃 객체</strong>가 놓이게 유도(Heap Grooming)한 뒤 62바이트를 덮어쓰면, 아래 3가지 단계로 사고가 커집니다.
+      </p>
+
+      <div class="sim-box" style="margin-top:12px;">
+        <div style="font-weight:800; margin-bottom:10px;">🎯 옆집 메모리를 덮어쓰면 실제로 무슨 일이 벌어질까? (클릭해서 확인)</div>
+        <div class="sim-controls">
+          <button id="exp-btn-1" class="sim-btn active-bug" onclick="setExploit(1)">💥 1. 서버 즉사 (서비스 먹통)</button>
+          <button id="exp-btn-2" class="sim-btn" onclick="setExploit(2)">🔑 2. 메모리 훔쳐보기 (DB 비번·토큰 유출)</button>
+          <button id="exp-btn-3" class="sim-btn" onclick="setExploit(3)">☠️ 3. 서버 장악 (DB 통째로 털기)</button>
+        </div>
+        <div id="exp-card" class="sim-explain" style="margin-top:0; line-height:1.7;">
+          <strong>“옆집 객체의 이름표를 찢어버려서 서버가 그대로 멈춤”</strong><br/>
+          Java 객체 맨 앞에는 “내가 누구인지” 적힌 이름표(헤더)가 붙어 있습니다. 여기에 엉뚱한 글자가 덮어써지면, 잠시 뒤 서버가 그 객체를 쓰려다 “이게 도대체 뭐야?” 하고 <strong>Java 서버 전체가 뻗어버립니다(장애/먹통)</strong>.
+        </div>
+      </div>
+    </section>
+
+    <!-- STEP 4 -->
+    <section class="card">
+      <h2><span class="step-num">4</span>우리 서버도 위험할까? (3초 자가진단 &amp; 처방)</h2>
+      <p>다행히 <strong>두 가지 조건이 동시에 맞아야</strong> 터집니다. 하나라도 해당 안 되면 안전합니다!</p>
+
+      <div class="check-grid">
+        <div class="check-card danger">
+          <h3>🚨 영향 받는 환경</h3>
+          <ul style="margin:0; padding-left:18px;">
+            <li><strong>OpenJDK / Oracle JDK 17.0.6 이상</strong> (17, 21, 25, 27 포함)</li>
+            <li><strong>x86-64 CPU + AVX-512 VBMI 지원</strong><br/>(Intel Ice Lake 이상, AMD Zen 4 이상 클라우드 서버 등)</li>
+            <li>외부 입력을 <code>Base64.getDecoder().decode()</code>로 받는 서비스 (JWT, API 페이로드, 웹훅 등)</li>
+          </ul>
+        </div>
+        <div class="check-card safe">
+          <h3>🛡️ 영향 없는 환경</h3>
+          <ul style="margin:0; padding-left:18px;">
+            <li><strong>ARM64</strong> 서버 (AWS Graviton, Apple Silicon M시리즈 등)</li>
+            <li>구형 x86 CPU (AVX-512 VBMI 미지원)</li>
+            <li>Java 8 / Java 11 (이 AVX-512 경로가 아예 없음)</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="hero-grid" style="margin-top:22px;">
+        <div>
+          <h3 style="margin-top:0;">어떻게 막나요?</h3>
+          <p><strong>1순위 (정식 해결):</strong> 보안 패치가 적용된 최신 JDK로 업데이트하세요.<br/>
+          <span style="color:var(--muted); font-size:14px;">(예: 17.0.21.1, 21.0.13.1, 25.0.5.1, 27.0.1.1 이상)</span></p>
+          <p><strong>2순위 (당장 재배포/패치 못 할 때 임시 스위치):</strong><br/>
+          JVM 실행 옵션에 아래 플래그 하나만 추가하면 문제의 AVX-512 고속도로를 끕니다.</p>
+          <div class="code-bar">
+            <code id="jvm-flag">-XX:-UseBASE64Intrinsics</code>
+            <button class="copy-btn" onclick="copyFlag()">복사</button>
+          </div>
+          <div class="speech">
+            <span class="tag">벨로키 한마디</span>
+            <div>“Base64 디코딩 속도는 조금 느려지지만, 옆집 메모리가 64바이트씩 도배되는 것보단 백 배 낫습니다. 패치 전엔 일단 스위치부터 내리자구요!”</div>
+          </div>
+        </div>
+        <div class="illus-box">
+          <img src="assets/261118-veloki-java4shell-fix.png" alt="벨로키가 -XX:-UseBASE64Intrinsics 스위치를 OFF로 내리는 삽화" />
+          <div class="illus-caption">벨로키의 응급처치: 일단 고속도로 차단기부터 내리고 보자!</div>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      원본 소식: GeekNews #37370 · CVE-2026-114938 (Java4Shell) · TECHTAEK 벨로키 해설판
+    </footer>
+  </div>
+
+  <script>
+    function renderHeap(mode) {
+      const strip = document.getElementById('heap-strip');
+      strip.innerHTML = '';
+      const total = 24;
+      for (let i = 0; i < total; i++) {
+        const div = document.createElement('div');
+        if (mode === 'ok') {
+          if (i < 3) {
+            div.className = 'cell mine';
+            div.textContent = 'OK';
+          } else {
+            div.className = 'cell neighbor';
+            div.textContent = '·';
+          }
+        } else {
+          if (i < 2) {
+            div.className = 'cell mine';
+            div.textContent = '2B';
+          } else {
+            div.className = 'cell smashed';
+            div.textContent = '!';
+          }
+        }
+        strip.appendChild(div);
+      }
+    }
+
+    function setSim(mode) {
+      const btnOk = document.getElementById('btn-ok');
+      const btnBug = document.getElementById('btn-bug');
+      const lenEl = document.getElementById('sim-len');
+      const maskEl = document.getElementById('sim-mask');
+      const statusEl = document.getElementById('sim-status');
+      const explainEl = document.getElementById('sim-explain');
+
+      if (mode === 'ok') {
+        btnOk.className = 'sim-btn active-ok';
+        btnBug.className = 'sim-btn';
+        lenEl.textContent = '+3 bytes';
+        lenEl.style.color = 'var(--green)';
+        maskEl.textContent = '하위 3칸만 ON';
+        statusEl.textContent = '안전 (경계 준수)';
+        statusEl.style.color = 'var(--green)';
+        explainEl.innerHTML = '정상 입력입니다. 필요한 3칸만 깔끔하게 쓰고 옆집 메모리는 건드리지 않았습니다.';
+      } else {
+        btnOk.className = 'sim-btn';
+        btnBug.className = 'sim-btn active-bug';
+        lenEl.textContent = '-2 (음수 언더플로!)';
+        lenEl.style.color = 'var(--accent)';
+        maskEl.textContent = '64B 전체 ON (마스크 붕괴)';
+        statusEl.textContent = '💥 옆집 Heap 62B 침범!';
+        statusEl.style.color = 'var(--accent)';
+        explainEl.innerHTML = '원래는 2바이트짜리 작은 버퍼인데, 길이 계산이 음수(-2)가 되면서 bzhiq 마스크가 풀려 64바이트를 통째로 찍어버렸습니다! Java가 예외를 던지기 직전에 이미 옆집 객체가 망가집니다.';
+      }
+      renderHeap(mode);
+    }
+
+    function copyFlag() {
+      const text = document.getElementById('jvm-flag').textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = document.querySelector('.copy-btn');
+        btn.textContent = '복사됨!';
+        setTimeout(() => btn.textContent = '복사', 1500);
+      });
+    }
+
+    function setExploit(step) {
+      [1, 2, 3].forEach(i => {
+        document.getElementById('exp-btn-' + i).className = (i === step) ? 'sim-btn active-bug' : 'sim-btn';
+      });
+      const card = document.getElementById('exp-card');
+      if (step === 1) {
+        card.innerHTML = '<strong>“옆집 객체의 이름표를 찢어버려서 서버가 그대로 멈춤”</strong><br/>Java 객체 맨 앞에는 “내가 누구인지” 적힌 이름표(헤더)가 붙어 있습니다. 여기에 엉뚱한 글자가 덮어써지면, 잠시 뒤 서버가 그 객체를 쓰려다 “이게 도대체 뭐야?” 하고 <strong>Java 서버 전체가 뻗어버립니다(장애/먹통)</strong>.';
+      } else if (step === 2) {
+        card.innerHTML = '<strong>“옆집 공책의 페이지 제한을 풀어서 DB 비번·API 키를 훔쳐봄”</strong><br/>원래 16글자만 적혀 있던 옆집 데이터 칸의 ‘길이’ 숫자를 엄청나게 큰 숫자로 바꿔치기합니다. 그러면 서버 메모리 다른 구석에 떠 있던 <strong>DB 접속 비밀번호, AWS 키, 다른 사용자의 로그인 토큰</strong>까지 쭉 읽어갈 수 있습니다.';
+      } else {
+        card.innerHTML = '<strong>“서버의 다음 할 일 목록을 내 명령어로 바꿔서 DB를 통째로 털어감”</strong><br/>한 단계 더 나아가 서버가 다음에 실행할 명령 위치(함수 포인터·실행 경로)를 해커가 원하는 코드로 바꿔치기합니다. 성공하면 해커가 서버 터미널을 직접 연 것처럼 <strong>DB 데이터를 통째로 빼돌리거나, 악성코드·랜섬웨어를 심고, 사내 다른 서버로까지 침투</strong>할 수 있습니다(이게 바로 RCE!).';
+      }
+    }
+
+    renderHeap('ok');
+  </script>
+</body>
+</html>
